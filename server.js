@@ -195,6 +195,7 @@ wss.on("connection", function (connection) {
   		}
   		users.delete(connection.name);
   	} else if(connection.name && connection.isAgent == true) {
+  		numberofagents--;
   		if(connection.to) {
   			console.log(connection.name+" is disconnecting from "+connection.to);
   			if(users.has(connection.to)) {
