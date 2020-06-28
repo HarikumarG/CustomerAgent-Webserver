@@ -42,7 +42,8 @@ wss.on("connection", function (connection) {
 
 
     switch(data.type) {
-    	//If logged in person is an agent then add it to the list else Round robin algo should be called
+    	//If logged in then add name and connection to the map
+    	//if Customer then RRalgo should be called
     	case "login": {
     		if(data.name != null && users.has(data.name)){
     			console.log(data.name+": Already Exist...Try different name !");
