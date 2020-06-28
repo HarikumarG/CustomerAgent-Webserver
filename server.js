@@ -5,25 +5,31 @@ var favicon = require("serve-favicon");
 let server;
 const app = express();
 app.use(favicon(__dirname + '/client/assets/server.png'));
-//all connected to the server users
+
+//Both customers and agents who connected to the server
 var users = new Map();
+//Agents who are assigned to the customer (ie) agents who are busy
 var busy = new Map();
+//To display the list of users connected to the server
 app.get("/", function (req, res) {
   data = "<h1>Server Started and running successfully</h1><h2>User Logged in list :-</h2>";
-  // for(const usr in users){
-  //   data += "<h3>"+usr+"</h3>";
-  // }
-  // res.send(data);
-  //res.sendFile(__dirname + "/client/index.html");
+  for(const [key,value] of users.entries()) {
+  	data += "<h3>"+key+"  -  "+value.isAgent+"</h3>";
+  }
+  res.send(data);
 });
 server = new http.createServer(app);
 var wss = new WSServer({ server });
+//boolean to find if any agent exist or not
 var agentexist = false;
+//number of agents currently logged in the server
 var numberofagents = 0;
+//This maintains a count for each customer that number of agents rejected the customer's request
 var rejectcount = new Map();
 
 wss.on("connection", function (connection) {
-  console.log("User connected and size of userslist is "+users.size+" and size of busylist is " +busy.size);
+  console.log("One connection is connected");
+
   connection.on("message",function(packet){
 	var data;
 	try {
@@ -36,6 +42,7 @@ wss.on("connection", function (connection) {
 
 
     switch(data.type) {
+    	//If logged in person is an agent then add it to the list else Round robin algo should be called
     	case "login": {
     		if(data.name != null && users.has(data.name)){
     			console.log(data.name+": Already Exist...Try different name !");
@@ -59,6 +66,7 @@ wss.on("connection", function (connection) {
     		}
     		break;
     	}
+    	//If an agent clicks the disconnect button he should become available to connect next customer
     	case "leave": {
     		if(data.isAgent == true && data.name != null) {
     			console.log(data.name+ "is disconnecting from "+data.to);
@@ -89,6 +97,7 @@ wss.on("connection", function (connection) {
     		}
     		break;
     	}
+    	//On message send from customer to agent or vice versa
     	case "message": {
     		if(data.isAgent == true) {
     			console.log("Message sent from agent to user");
@@ -101,7 +110,7 @@ wss.on("connection", function (connection) {
     					console.log("The user is connected with someone");
     				}
     			} else {
-    				console.log("Send to is not available else and isAgent is true");
+    				console.log("Send to is not available and isAgent is true");
     			}
     		} else if(data.isAgent == false) {
     			console.log("Message sent from user to agent");
@@ -121,6 +130,7 @@ wss.on("connection", function (connection) {
     		}
     		break;
     	}
+    	//The response from the agent whether to connect the requested customer or not
     	case "askresponse": {
     		if(data.isAgent == true && data.message != null && data.message == "yes") {
     			let conn = users.get(data.to);
@@ -150,6 +160,7 @@ wss.on("connection", function (connection) {
     				var count = rejectcount.get(conn.name);
     				count++;
     				rejectcount.set(conn.name,count);
+    				//if rejected count of that customer increases or equals the number of agents then it means all agents rejected
     				if(count >= numberofagents) {
     					let packet = {
 							type:"busy",
@@ -160,6 +171,7 @@ wss.on("connection", function (connection) {
 						};
 						sendTo(conn,packet);
     				} else {
+    					//if not then call RRalgo again to ask the next agent
     					RRalgo(conn.name,conn);
     				}
     			} else {
@@ -176,7 +188,9 @@ wss.on("connection", function (connection) {
 
   });
   connection.on("close",function() {
+  	//if customer left send info to agent
   	if(connection.name && connection.isAgent == false) {
+  		console.log(connection.name+": This Customer left");
   		if(connection.to) {
   			console.log(connection.name+" is disconnecting from "+connection.to);
   			if(busy.has(connection.to)) {
@@ -195,7 +209,10 @@ wss.on("connection", function (connection) {
   		}
   		users.delete(connection.name);
   	} else if(connection.name && connection.isAgent == true) {
+  		//if agent left send info to customer
   		numberofagents--;
+  		console.log(connection.name+" :This agent left");
+  		console.log("Number of agents left "+numberofagents);
   		if(connection.to) {
   			console.log(connection.name+" is disconnecting from "+connection.to);
   			if(users.has(connection.to)) {
@@ -221,7 +238,7 @@ wss.on("connection", function (connection) {
   });
 });
 
-
+//function to move available agent from user list to busy list
 function movefromavailabletobusy(agentname) {
 	if(!busy.has(agentname) && users.has(agentname)) {
 		let conn = users.get(agentname);
@@ -233,6 +250,7 @@ function movefromavailabletobusy(agentname) {
 	}
 }
 
+//function to move busy agent from busy list to user list
 function movefrombusytoavailable(agentname) {
 	if(busy.has(agentname) && !users.has(agentname)) {
 		let conn = busy.get(agentname);
@@ -244,6 +262,7 @@ function movefrombusytoavailable(agentname) {
 	}
 }
 
+//function which implements Round robin algorithm
 function RRalgo(username,connection) {
 	for(const [key,value] of users.entries()) {
 		let agentname = key;
@@ -275,6 +294,7 @@ function RRalgo(username,connection) {
 	}
 }
 
+//sends message to the connection
 function sendTo(connection, packet) {
   connection.send(JSON.stringify(packet));
 }
