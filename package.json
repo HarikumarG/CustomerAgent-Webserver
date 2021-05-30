@@ -12,7 +12,7 @@
   "dependencies": {
     "express": "^4.17.1",
     "serve-favicon": "^2.5.0",
-    "ws": "^7.2.5"
+    "ws": "^7.4.6"
   },
   "engines": {
     "node": "~12.14.1"
